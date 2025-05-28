@@ -5,7 +5,7 @@
 
 import { ToolName, ToolParamName } from './prompt/prompts.js'
 import { ChatMode, ModelSelection, ModelSelectionOptions, OverridesOfModel, ProviderName, RefreshableProviderName, SettingsOfProvider } from './voidSettingsTypes.js'
-
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js'
 
 export const errorDetails = (fullError: Error | null): string | null => {
 	if (fullError === null) {
@@ -133,6 +133,7 @@ export type SendLLMMessageParams = {
 	overridesOfModel: OverridesOfModel | undefined;
 
 	settingsOfProvider: SettingsOfProvider;
+	configurationService?: IConfigurationService;
 } & SendLLMType
 
 
@@ -196,17 +197,17 @@ export type ModelListParams<ModelResponse> = {
 }
 
 // params to the service
-export type ServiceModelListParams<modelResponse> = {
+export type ServiceModelListParams<ModelResponse> = {
 	providerName: RefreshableProviderName;
-	onSuccess: (param: { models: modelResponse[] }) => void;
+	onSuccess: (param: { models: ModelResponse[] }) => void;
 	onError: (param: { error: any }) => void;
 }
 
 type BlockedMainModelListParams = 'onSuccess' | 'onError'
-export type MainModelListParams<modelResponse> = Omit<ModelListParams<modelResponse>, BlockedMainModelListParams> & { providerName: RefreshableProviderName, requestId: string }
+export type MainModelListParams<ModelResponse> = Omit<ModelListParams<ModelResponse>, BlockedMainModelListParams> & { providerName: RefreshableProviderName, requestId: string }
 
-export type EventModelListOnSuccessParams<modelResponse> = Parameters<ModelListParams<modelResponse>['onSuccess']>[0] & { requestId: string }
-export type EventModelListOnErrorParams<modelResponse> = Parameters<ModelListParams<modelResponse>['onError']>[0] & { requestId: string }
+export type EventModelListOnSuccessParams<ModelResponse> = Parameters<ModelListParams<ModelResponse>['onSuccess']>[0] & { requestId: string }
+export type EventModelListOnErrorParams<ModelResponse> = Parameters<ModelListParams<ModelResponse>['onError']>[0] & { requestId: string }
 
 
 

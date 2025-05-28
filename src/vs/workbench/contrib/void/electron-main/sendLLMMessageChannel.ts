@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { EventLLMMessageOnTextParams, EventLLMMessageOnErrorParams, EventLLMMessageOnFinalMessageParams, MainSendLLMMessageParams, AbortRef, SendLLMMessageParams, MainLLMMessageAbortParams, ModelListParams, EventModelListOnSuccessParams, EventModelListOnErrorParams, OllamaModelResponse, OpenaiCompatibleModelResponse, MainModelListParams, } from '../common/sendLLMMessageTypes.js';
 import { sendLLMMessage } from './llmMessage/sendLLMMessage.js'
 import { IMetricsService } from '../common/metricsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { sendLLMMessageToProviderImplementation } from './llmMessage/sendLLMMessage.impl.js';
 
 // NODE IMPLEMENTATION - calls actual sendLLMMessage() and returns listeners to it
@@ -48,6 +49,7 @@ export class LLMMessageChannel implements IServerChannel {
 	// stupidly, channels can't take in @IService
 	constructor(
 		private readonly metricsService: IMetricsService,
+		private readonly configurationService: IConfigurationService,
 	) { }
 
 	// browser uses this to listen for changes
@@ -109,6 +111,7 @@ export class LLMMessageChannel implements IServerChannel {
 				this.llmMessageEmitters.onError.fire({ requestId, ...p });
 			},
 			abortRef: this._infoOfRunningRequest[requestId].abortRef,
+			configurationService: this.configurationService,
 		}
 		const p = sendLLMMessage(mainThreadParams, this.metricsService);
 		this._infoOfRunningRequest[requestId].waitForSend = p

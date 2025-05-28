@@ -1240,7 +1240,7 @@ export class CodeApplication extends Disposable {
 		const voidUpdatesChannel = ProxyChannel.fromService(accessor.get(IVoidUpdateService), disposables);
 		mainProcessElectronServer.registerChannel('void-channel-update', voidUpdatesChannel);
 
-		const sendLLMMessageChannel = new LLMMessageChannel(accessor.get(IMetricsService));
+		const sendLLMMessageChannel = new LLMMessageChannel(accessor.get(IMetricsService), accessor.get(IConfigurationService));
 		mainProcessElectronServer.registerChannel('void-channel-llmMessage', sendLLMMessageChannel);
 
 		// Extension Host Debug Broadcasting

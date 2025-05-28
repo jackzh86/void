@@ -12,6 +12,7 @@ import { MistralCore } from '@mistralai/mistralai/core.js';
 import { fimComplete } from '@mistralai/mistralai/funcs/fimComplete.js';
 import { Tool as GeminiTool, FunctionDeclaration, GoogleGenAI, ThinkingConfig, Schema, Type } from '@google/genai';
 import { GoogleAuth } from 'google-auth-library'
+import { HttpsProxyAgent } from 'https-proxy-agent';
 /* eslint-enable */
 
 import { AnthropicLLMChatMessage, GeminiLLMChatMessage, LLMChatMessage, LLMFIMMessage, ModelListParams, OllamaModelResponse, OnError, OnFinalMessage, OnText, RawToolCallObj, RawToolParamsObj } from '../../common/sendLLMMessageTypes.js';
@@ -20,6 +21,32 @@ import { getSendableReasoningInfo, getModelCapabilities, getProviderCapabilities
 import { extractReasoningWrapper, extractXMLToolsWrapper } from './extractGrammar.js';
 import { availableTools, InternalToolInfo, isAToolName, ToolParamName, voidTools } from '../../common/prompt/prompts.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { URI } from '../../../../../base/common/uri.js';
+
+// Get proxy configuration from settings
+const getProxyConfig = (configurationService: IConfigurationService) => {
+	const inspect = configurationService.inspect<string>('http.proxy');
+	let httpProxy = (inspect.userLocalValue || '').trim()
+		|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim()
+		|| undefined;
+
+	if (httpProxy && httpProxy.indexOf('@') !== -1) {
+		const uri = URI.parse(httpProxy);
+		const i = uri.authority.indexOf('@');
+		if (i !== -1) {
+			httpProxy = uri.with({ authority: uri.authority.substring(i + 1) }).toString();
+		}
+	}
+	if (httpProxy?.endsWith('/')) {
+		httpProxy = httpProxy.substr(0, httpProxy.length - 1);
+	}
+
+	const noProxy = (configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(',')
+		|| (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined;
+
+	return { httpProxy: httpProxy || '', noProxy };
+};
 
 const getGoogleApiKey = async () => {
 	// module‑level singleton
@@ -42,6 +69,7 @@ type InternalCommonMessageParams = {
 	overridesOfModel: OverridesOfModel | undefined;
 	modelName: string;
 	_setAborter: (aborter: () => void) => void;
+	configurationService?: IConfigurationService;
 }
 
 type SendChatParams_Internal = InternalCommonMessageParams & {
@@ -68,11 +96,20 @@ const parseHeadersJSON = (s: string | undefined): Record<string, string | null |
 	}
 }
 
-const newOpenAICompatibleSDK = async ({ settingsOfProvider, providerName, includeInPayload }: { settingsOfProvider: SettingsOfProvider, providerName: ProviderName, includeInPayload?: { [s: string]: any } }) => {
+const newOpenAICompatibleSDK = async ({ settingsOfProvider, providerName, includeInPayload, configurationService }: { settingsOfProvider: SettingsOfProvider, providerName: ProviderName, includeInPayload?: { [s: string]: any }, configurationService?: IConfigurationService }) => {
 	const commonPayloadOpts: ClientOptions = {
 		dangerouslyAllowBrowser: true,
 		...includeInPayload,
 	}
+
+	// Add proxy configuration if available
+	if (configurationService) {
+		const { httpProxy } = getProxyConfig(configurationService);
+		if (httpProxy) {
+			commonPayloadOpts.httpAgent = new HttpsProxyAgent(httpProxy);
+		}
+	}
+
 	if (providerName === 'openAI') {
 		const thisConfig = settingsOfProvider[providerName]
 		return new OpenAI({ apiKey: thisConfig.apiKey, ...commonPayloadOpts })
@@ -434,7 +471,7 @@ const anthropicToolToRawToolCallObj = (toolBlock: Anthropic.Messages.ToolUseBloc
 }
 
 // ------------ ANTHROPIC ------------
-const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName: modelName_, _setAborter, separateSystemMessage, chatMode }: SendChatParams_Internal) => {
+const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName: modelName_, _setAborter, separateSystemMessage, chatMode, configurationService }: SendChatParams_Internal & { configurationService?: IConfigurationService }) => {
 	const {
 		modelName,
 		specialToolFormat,
@@ -456,11 +493,22 @@ const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessag
 		{ tools: potentialTools, tool_choice: { type: 'auto' } } as const
 		: {}
 
+	// Add proxy configuration if available
+	let proxyConfig = {};
+	if (configurationService) {
+		const { httpProxy } = getProxyConfig(configurationService);
+		if (httpProxy) {
+			proxyConfig = {
+				httpAgent: new HttpsProxyAgent(httpProxy as string)
+			};
+		}
+	}
 
 	// instance
 	const anthropic = new Anthropic({
 		apiKey: thisConfig.apiKey,
-		dangerouslyAllowBrowser: true
+		dangerouslyAllowBrowser: true,
+		...proxyConfig
 	});
 
 	const stream = anthropic.messages.stream({
@@ -703,7 +751,8 @@ const sendGeminiChat = async ({
 	providerName,
 	modelSelectionOptions,
 	chatMode,
-}: SendChatParams_Internal) => {
+	configurationService,
+}: SendChatParams_Internal & { configurationService?: IConfigurationService }) => {
 
 	if (providerName !== 'gemini') throw new Error(`Sending Gemini chat, but provider was ${providerName}`)
 
@@ -733,9 +782,22 @@ const sendGeminiChat = async ({
 		potentialTools
 		: undefined
 
-	// instance
-	const genAI = new GoogleGenAI({ apiKey: thisConfig.apiKey });
+	// Add proxy configuration if available
+	let proxyConfig = {};
+	if (configurationService) {
+		const { httpProxy } = getProxyConfig(configurationService);
+		if (httpProxy) {
+			proxyConfig = {
+				httpAgent: new HttpsProxyAgent(httpProxy as string)
+			};
+		}
+	}
 
+	// instance
+	const genAI = new GoogleGenAI({
+		apiKey: thisConfig.apiKey,
+		...proxyConfig
+	});
 
 	// manually parse out tool results if XML
 	if (!specialToolFormat) {

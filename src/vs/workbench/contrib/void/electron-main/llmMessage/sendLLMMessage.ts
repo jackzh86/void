@@ -23,7 +23,8 @@ export const sendLLMMessage = async ({
 	overridesOfModel,
 	chatMode,
 	separateSystemMessage,
-}: SendLLMMessageParams,
+	configurationService,
+}: SendLLMMessageParams & { configurationService?: any },
 
 	metricsService: IMetricsService
 ) => {
@@ -107,12 +108,12 @@ export const sendLLMMessage = async ({
 		}
 		const { sendFIM, sendChat } = implementation
 		if (messagesType === 'chatMessages') {
-			await sendChat({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage, chatMode })
+			await sendChat({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage, chatMode, configurationService })
 			return
 		}
 		if (messagesType === 'FIMMessage') {
 			if (sendFIM) {
-				await sendFIM({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage })
+				await sendFIM({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage, configurationService })
 				return
 			}
 			onError({ message: `Error running Autocomplete with ${providerName} - ${modelName}.`, fullError: null })
