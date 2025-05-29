@@ -25,11 +25,23 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { URI } from '../../../../../base/common/uri.js';
 
 // Get proxy configuration from settings
-const getProxyConfig = (configurationService: IConfigurationService) => {
+const getProxyConfig = (configurationService?: IConfigurationService) => {
+	if (!configurationService) {
+		return { httpProxy: '', noProxy: undefined };
+	}
 	const inspect = configurationService.inspect<string>('http.proxy');
 	let httpProxy = (inspect.userLocalValue || '').trim()
 		|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim()
 		|| undefined;
+
+	console.log('Proxy configuration:', {
+		httpProxy, envVars: {
+			https_proxy: process.env['https_proxy'],
+			HTTPS_PROXY: process.env['HTTPS_PROXY'],
+			http_proxy: process.env['http_proxy'],
+			HTTP_PROXY: process.env['HTTP_PROXY']
+		}
+	});
 
 	if (httpProxy && httpProxy.indexOf('@') !== -1) {
 		const uri = URI.parse(httpProxy);
@@ -44,6 +56,8 @@ const getProxyConfig = (configurationService: IConfigurationService) => {
 
 	const noProxy = (configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(',')
 		|| (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined;
+
+	console.log('Final proxy configuration:', { httpProxy, noProxy });
 
 	return { httpProxy: httpProxy || '', noProxy };
 };
@@ -782,21 +796,20 @@ const sendGeminiChat = async ({
 		potentialTools
 		: undefined
 
-	// Add proxy configuration if available
-	let proxyConfig = {};
+	// Set environment variables for proxy if available
 	if (configurationService) {
 		const { httpProxy } = getProxyConfig(configurationService);
 		if (httpProxy) {
-			proxyConfig = {
-				httpAgent: new HttpsProxyAgent(httpProxy as string)
-			};
+			process.env.HTTP_PROXY = httpProxy;
+			process.env.HTTPS_PROXY = httpProxy;
+			process.env.ALL_PROXY = httpProxy;
+			process.env.GRPC_PROXY = httpProxy;
 		}
 	}
 
 	// instance
 	const genAI = new GoogleGenAI({
-		apiKey: thisConfig.apiKey,
-		...proxyConfig
+		apiKey: thisConfig.apiKey
 	});
 
 	// manually parse out tool results if XML
@@ -984,7 +997,7 @@ codestral https://ollama.com/library/codestral/blobs/51707752a87c
 [SUFFIX]{{ .Suffix }}[PREFIX] {{ .Prompt }}
 
 deepseek-coder-v2 https://ollama.com/library/deepseek-coder-v2/blobs/22091531faf0
-<ï½œfimâ–beginï½œ>{{ .Prompt }}<ï½œfimâ–holeï½œ>{{ .Suffix }}<ï½œfimâ–endï½œ>
+<£üfim¨xbegin£ü>{{ .Prompt }}<£üfim¨xhole£ü>{{ .Suffix }}<£üfim¨xend£ü>
 
 starcoder2 https://ollama.com/library/starcoder2/blobs/3b190e68fefe
 <file_sep>
