@@ -23,6 +23,7 @@ export const sendLLMMessage = async ({
 	overridesOfModel,
 	chatMode,
 	separateSystemMessage,
+	mcpTools,
 	configurationService,
 }: SendLLMMessageParams & { configurationService?: any },
 
@@ -108,7 +109,7 @@ export const sendLLMMessage = async ({
 		}
 		const { sendFIM, sendChat } = implementation
 		if (messagesType === 'chatMessages') {
-			await sendChat({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage, chatMode, configurationService })
+			await sendChat({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage, chatMode, mcpTools, configurationService })
 			return
 		}
 		if (messagesType === 'FIMMessage') {
